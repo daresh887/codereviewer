@@ -7,6 +7,7 @@ use axum::{
 };
 use dotenv::dotenv;
 use serde::Serialize;
+use std::net::SocketAddr;
 use thiserror::Error;
 
 #[derive(Serialize)]
@@ -85,8 +86,19 @@ async fn get_repo_info(
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().expect("Couldn't load .env file");
-    let app = Router::new().route("/repo/{owner}/{repo}", get(get_repo_info));
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+
+    let app =
+        Router::new().route("/api/repo/{owner}/{repo}", get(get_repo_info));
+
+    let port = std::env::var("PORT")
+        .unwrap_or_else(|_| "3002".to_string())
+        .parse::<u16>()
+        .expect("PORT must be a number");
+
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    eprintln!("Server listening on http://{}", addr);
+
+    let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
 
     Ok(())
