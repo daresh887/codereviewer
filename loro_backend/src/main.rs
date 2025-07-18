@@ -87,8 +87,7 @@ async fn get_repo_info(
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().expect("Couldn't load .env file");
 
-    let app =
-        Router::new().route("/api/repo/{owner}/{repo}", get(get_repo_info));
+    let app = Router::new().route("/repo/{owner}/{repo}", get(get_repo_info));
 
     let port = std::env::var("PORT")
         .unwrap_or_else(|_| "3002".to_string())
