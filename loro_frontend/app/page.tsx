@@ -28,7 +28,7 @@ export default function HomePage() {
     setRepoData(null);
     setError(null);
 
-  const backendUrl = `/api/repo/${owner}/${repo}`;
+    const backendUrl = `/api/repo/${owner}/${repo}`;
 
     try {
       const response = await fetch(backendUrl);
