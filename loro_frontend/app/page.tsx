@@ -28,7 +28,7 @@ export default function HomePage() {
     setRepoData(null);
     setError(null);
 
-  const backendUrl = `/api/repo/${owner}/${repo}`;
+    const backendUrl = `/api/repo/${owner}/${repo}`;
 
     try {
       const response = await fetch(backendUrl);
@@ -38,8 +38,10 @@ export default function HomePage() {
       }
       const data: RepoData = await response.json();
       setRepoData(data);
-    } catch (err: any) {
-      setError(err.message || "An unexpected error occurred.");
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      }
     } finally {
       setIsLoading(false);
     }

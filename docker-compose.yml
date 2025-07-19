@@ -1,0 +1,33 @@
+services:
+  loro_backend:
+    build: ./loro_backend
+    container_name: loro_backend
+    ports:
+      - "3002:3002"
+    env_file:
+      - ./.env
+
+
+  loro_frontend:
+      build:
+        context: ./loro_frontend
+        target: dev
+      container_name: loro_frontend
+      volumes:
+        - ./loro_frontend:/app
+        - /app/node_modules
+      ports:
+        - "3001:3001"
+      depends_on:
+        - loro_backend
+
+  nginx:
+    image: nginx:latest
+    container_name: my-nginx
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - loro_backend
+      - loro_frontend

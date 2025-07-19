@@ -692,8 +692,6 @@ dependencies = [
  "dotenv",
  "octocrab",
  "serde",
- "serde_json",
- "thiserror",
  "tokio",
 ]
 
