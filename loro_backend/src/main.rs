@@ -6,9 +6,8 @@ use axum::{
     Router,
 };
 use dotenv::dotenv;
-use futures::{future::BoxFuture, FutureExt};
 use octocrab::Octocrab;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, sync::Arc};
 
 #[derive(Serialize)]
@@ -54,68 +53,34 @@ async fn get_repo_info(
     (StatusCode::OK, Json(repo)).into_response()
 }
 
-#[derive(Debug, Serialize)]
-#[serde(tag = "type")]
-enum Node {
-    #[serde(rename = "file")]
-    File { name: String },
-    #[serde(rename = "directory")]
-    Directory { name: String, children: Vec<Node> },
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GitTreeResponse {
+    pub tree: Vec<GitTreeEntry>,
+    pub truncated: bool,
 }
 
-fn get_structure<'a>(
-    owner: &'a str,
-    repo: &'a str,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GitTreeEntry {
+    pub path: String,
+    #[serde(rename = "type")]
+    pub type_: String, // "blob" or "tree"
+    pub mode: String,
+    pub sha: String,
+    pub size: Option<u64>, // Only for blobs
+    pub url: String,
+}
+
+async fn get_git_tree(
     octocrab: Arc<Octocrab>,
-    path: String,
-) -> BoxFuture<'a, Result<Vec<Node>, Response>> {
-    async move {
-        let contents_result = octocrab
-            .repos(owner, repo)
-            .get_content()
-            .path(&path)
-            .send()
-            .await;
-
-        if let Err(error) = contents_result {
-            return Err(handle_octocrab_error(error));
-        }
-
-        let items = contents_result.unwrap().items;
-        let mut ret = Vec::new();
-        for item in items {
-            match item.r#type.as_str() {
-                "file" => ret.push(Node::File { name: item.name }),
-                "dir" => {
-                    let mut path = path.clone();
-                    path.push_str("/");
-                    path.push_str(item.name.as_str());
-                    ret.push(Node::Directory {
-                        name: item.name,
-                        children: get_structure(
-                            owner,
-                            repo,
-                            Arc::clone(&octocrab),
-                            path.clone(),
-                        )
-                        .await?,
-                    })
-                }
-                _ => {
-                    return Err((
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorMessage::new(
-                            "Internal server error: Unknown item type",
-                        )),
-                    )
-                        .into_response())
-                }
-            }
-        }
-
-        Ok(ret)
-    }
-    .boxed()
+    owner: &str,
+    repo: &str,
+) -> Result<GitTreeResponse, octocrab::Error> {
+    octocrab
+        .get::<GitTreeResponse, String, ()>(
+            format!("/repos/{}/{}/git/trees/main?recursive=1", owner, repo),
+            None,
+        )
+        .await
 }
 
 async fn get_repo_structure(
@@ -124,13 +89,14 @@ async fn get_repo_structure(
 ) -> Response {
     eprintln!("GET /repo/{}/{}/structure", owner, repo);
 
-    let structure = get_structure(&owner, &repo, octocrab, String::new()).await;
+    let tree = get_git_tree(Arc::clone(&octocrab), &owner, &repo).await;
 
-    if let Err(error) = structure {
-        return error;
+    if let Err(error) = tree {
+        return handle_octocrab_error(error);
     }
 
-    (StatusCode::OK, Json(structure.unwrap())).into_response()
+    let tree = tree.unwrap();
+    (StatusCode::OK, Json(tree)).into_response()
 }
 
 #[tokio::main]
